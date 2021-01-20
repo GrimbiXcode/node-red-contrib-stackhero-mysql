@@ -42,6 +42,11 @@ return msg;
 > Always use the `payload` variable to pass your arguments.
 
 
+## Configurations
+
+You can put `${ENV_VAR}` into the input fields of your configuration node to use your environment variables.
+
+
 ## Troubleshooting
 
 
