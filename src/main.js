@@ -8,6 +8,70 @@ module.exports = (RED) => {
   function MySQLNode(config) {
     RED.nodes.createNode(this, config);
 
+    // this sandbox is a lightweight copy of the sandbox in the function node to be as compatible as possible to the syntax allowed there. 
+    // source: https://github.com/windkh/node-red-contrib-telegrambot/blob/master/telegrambot/99-telegrambot.js
+    const sandbox = {
+      node : {},
+
+      context: {
+        get: function() {
+          return sandbox.node.context().get.apply(sandbox.node,arguments);
+        },
+        keys: function() {
+          return sandbox.node.context().keys.apply(sandbox.node,arguments);
+        },
+        get global() {
+          return sandbox.node.context().global;
+        },
+        get flow() {
+          return sandbox.node.context().flow;
+        }
+      },
+      flow: {
+        get: function() {
+          return sandbox.node.context().flow.get.apply(sandbox.node,arguments);
+        },
+        keys: function() {
+          return sandbox.node.context().flow.keys.apply(sandbox.node,arguments);
+        }
+      },
+      global: {
+        get: function() {
+          return sandbox.node.context().global.get.apply(sandbox.node,arguments);
+        },
+        keys: function() {
+          return sandbox.node.context().global.keys.apply(sandbox.node,arguments);
+        }
+      },
+      env: {
+        get: function(envVar) {
+          let flow = sandbox.node._flow;
+          return flow.getSetting(envVar);
+        }
+      }
+    };
+    sandbox.node = this;
+
+    this.getConfig = function(conf){
+      conf = conf.trim();
+      console.log(conf);
+      if (conf) {
+        if (conf.startsWith("{") && conf.endsWith("}")) {   
+          let expression = conf.substr(1, conf.length - 2);
+          let code = `sandbox.${expression};`;
+          try {
+            conf = Function('"use strict";return (' + code + ')')();;
+            if(conf === undefined){
+              conf = '';
+            }
+          } catch (e) {
+            conf = '';
+          }
+        }
+      }
+      return conf;
+    }
+
     this.query = (...args) => new Promise((resolve, reject) => {
       this.pool.query(...args, (err, ...results) => err ? reject(err) : resolve(results));
       this.pingReset(5);
@@ -37,11 +101,11 @@ module.exports = (RED) => {
 
       // Note: the connection is not done here
       this.pool = mysql.createPool({
-        host: config.host,
-        port: config.port,
-        user: this.credentials.user,
-        password: this.credentials.password,
-        database: config.database,
+        host: this.getConfig(config.host),
+        port: this.getConfig(config.port),
+        user: this.getConfig(this.credentials.user),
+        password: this.getConfig(this.credentials.password),
+        database: this.getConfig(config.database),
         waitForConnections: true,
         connectionLimit: 5,
         queueLimit: 0,
